@@ -1,0 +1,632 @@
+---
+title: ""
+output:
+  html_document:
+    df_print: paged
+    toc_depth: '3'
+  html_notebook:
+    df_print: paged
+    highlight: tango
+    self_contained: yes
+    theme: paper
+    toc_depth: 3
+  pdf_document:
+    toc_depth: '3'
+editor_options: 
+  chunk_output_type: console
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(tidyverse)
+
+```
+## Introduction
+The American Community Survey (ACS) provides vital information on a yearly basis about the nation and people. Through the ACS, we know more about jobs and occupations, educational attainment, veterans, whether people own or rent their home and other topics. Public officials, planners and entrepreneurs use this information to assess the past and plan the future. This data is used to plan hospital and schools, to support school lunch programs, to improve emergency services, to build bridges and to inform businesses looking to add jobs and expand to new markets and more. The ACS consists of 72 questions pertaining to the topics split into population and household characteristics. 
+
+
+- The population section is about employment, education, veterans, income and housing costs, commuting, disability and health insurance.   
+- The Housing data is about:
+    - housing characteristics: these variables ask about plumbing, kitchen facilities, and other housing features to help identify areas with substandard housing. There are variables about size and age of housing also flag local problems like overcrowding, health hazards, and congestion. Through this data we can find out communities eligible for housing assistance, rehabilitation loans, and other program that help people afford decent, safe, and sanitary housing.
+    - Owners and Renters: the questioners were asked whether they own or rent their home, and the amount of monthly rent or how much the home and property are worth. These statistics are used to analyze whether housing is affordable, protect owners and renters and allocate and find assistance programs. These statistics are used to understand changes in local housing markets, monitor affordability, qualify for assistance and reduce the tax revenue losses from vacant or abandoned properties. These data can be used to design and market homes, and home goods by Businesses.
+    - People and Relationships: these parts of variables are about respondents’ age, sex, race, Hispanic origin, and their relationship to others in the household. This information is used to monitor well-being, discrimination, and economic hardship. With the help of these information we can find groups such as single parents, low-income families, older people living alone, etc. and provide funds and services for these groups. Also, businesses use these estimates to evaluate local market demand for products and services.
+    
+
+In this project I worked on Housing dataset and try to find some information about vulnerable groups and mostly focused on Renters.
+    
+```{r data_loading,eval=FALSE,echo=FALSE,results='hide'}
+
+#Use fread to read 4files
+
+
+psam_husa <- fread("psam_husa.csv")
+psam_husb <- fread("psam_husb.csv")
+psam_husc <- fread("psam_husc.csv")
+psam_husd <- fread("psam_husd.csv")
+
+#select columns for each file
+
+a <- psam_husa %>% select (ST,BLD,TEN,FS, HINCP, GRNTP,VALP,SMOCP, RMSP,MV,PARTNER,NRC,FKITP,FPLMP)
+b <- psam_husb %>% select (ST,BLD,TEN,FS, HINCP, GRNTP,VALP,SMOCP, RMSP,MV,PARTNER,NRC,FKITP,FPLMP)
+c <- psam_husc %>% select (ST,BLD,TEN,FS, HINCP, GRNTP,VALP,SMOCP, RMSP,MV,PARTNER,NRC,FKITP,FPLMP)
+d <- psam_husd %>% select (ST,BLD,TEN,FS, HINCP, GRNTP,VALP,SMOCP, RMSP,MV,PARTNER,NRC,FKITP,FPLMP)
+
+Housing.Data <- rbind(a,b,c,d)   #Combine them 
+
+
+Housing <- write_csv(Housing.Data,"Housing.csv")   #Save the result data as a .csv file
+
+```
+
+```{r echo=FALSE,message=FALSE,error=FALSE}
+library(bit64)
+library(dplyr)
+library(tidyverse)
+library(dplyr)
+library(readr)
+library(forcats)
+library(Hmisc)
+library(na.tools)
+library(ggplot2)
+library(summarytools)
+library(choroplethr)
+library(choroplethrMaps)
+library(broom)
+library(knitr)
+library(kableExtra)
+
+
+
+Housing <- readr::read_csv("Housing.csv")
+
+colnames(Housing) <- c("State","Units.structure","Tenure","Food.Stamp","HH.income","Grs.rent","Property.Value","Owner.costs","No.rooms","when.moved","Householder","No.children","F.Kitchen","F.Plumbing")
+
+Housing$Tenure <- as.character(Housing$Tenure)
+Housing$Units.structure <- as.character(Housing$Units.structure)
+Housing$Householder <- as.character(Housing$Householder)
+Housing$when.moved <- as.character(Housing$when.moved)
+
+Housing <- Housing %>%
+  dplyr::mutate(Units.structure=forcats::fct_recode(Units.structure,"SingleFamily.Detached"="2","SingleFamily.Attached"="3","Manufactured.Housing"="4","Manufactured.Housing"="5","Manufactured.Housing"="6","Manufactured.Housing"="7","Manufactured.Housing"="8","Manufactured.Housing"="9","others" ="1","others" ="10"))%>%
+  mutate(Householder=fct_recode(Householder,"single.f" = "3","single.f" = "4","single.m" = "1","single.m" = "2","others" = "0"))%>%
+  dplyr::mutate(when.moved = forcats::fct_recode(when.moved,"12 months or less"="1","13 to 23 months "="2","2 to 4 years "="3","5 to 9 years "="4","10 to 19 years"="5","20 years or more"="6","20 years or more"="7"))%>%
+  dplyr::mutate(Tenure = forcats::fct_recode(Tenure,"Owned.mtg" = "1","Owned.free" = "2","Rented" = "3","Others" = "4")) 
+
+stateCodeCSV <- "st,region
+001,alabama
+002,alaska
+004,arizona
+005,arkansas
+006,california
+008,colorado
+009,connecticut
+010,delaware
+011,district of columbia
+012,florida
+013,georgia
+015,hawaii
+016,idaho
+017,illinois
+018,indiana
+019,iowa
+020,kansas
+021,kentucky
+022,louisiana
+023,maine
+024,maryland
+025,massachusetts
+026,michigan
+027,minnesota
+028,mississippi
+029,missouri
+030,montana
+031,nebraska
+032,nevada
+033,new hampshire
+034,new jersey
+035,new mexico
+036,new york
+037,north carolina
+038,north dakota
+039,ohio
+040,oklahoma
+041,oregon
+042,pennsylvania
+044,rhode island
+045,south carolina
+046,south dakota
+047,tennessee
+048,texas
+049,utah
+050,vermont
+051,virginia
+053,washington
+054,west virginia
+055,wisconsin
+056,wyoming
+"
+stateCodes <- readr::read_csv(stateCodeCSV)
+
+stateCodes$st <- as.numeric (stateCodes$st)
+
+print(summarytools::dfSummary(Housing),method='rendr')
+
+```
+## Summary Table   
+The summary table - as is shown - contains certain variables and related major data that are used in this analysis.   
+
+- State 
+The first variable in the table refers to States of America. This survey analyzes the given housing data of united stated.   
+- Units.Structure    
+The second variable refers to Units in Structure. A structure is a separate building that either has open spaces on all sides or is separated from other structures by dividing walls. The units in structure are subdivided to four categories: **singlefamily.detached**, **singlefamily.attached**, **manufactured.Housing** and **other** groups that provide information on the housing inventory. According to the data the Unit Detached (a unit structure with open space on all four sides) is the most popular type of unit structure, 67% and manufactured housing (apartments containing 2 or more housing units) is second, 21%. More than 90% of given data is valid in this category. The data used to analyze the American community interest in marketing area.    
+- Tenure
+The third variable refers to tenure. The question was asked at occupied housing units. Occupied housing units are classified as **owned.mtg**, **owned.free**, **rented** and **other**. Tenure provides a measurement of home ownership, which has served as an indicator of the nation’s economy for decades. This data shows that the most unites are under the mortgage, 42% and also around 28% of them are rented unites. Just near 28% of American has own unites without related loans. The data used to analyze the mortgage and real estate marketing in United States. The data also serve in understanding the characteristics of owner- occupied and renter- occupied units to aid builders, mortgage lenders, planning officials, government agencies, etc. More than 80% of given data is valid in this category.   
+- Food.Stamp    
+The forth variable refers to Food Stamp benefits. The Food Stamp is a funded program as one intended to permit low- income households to obtain a more nutritious diet. The data shows that about 89% of Americans don’t receive national income support program. This variable also shows the tau of poverty status, to measure economic well- being, and to assess the need for assistance in each state and also is used for comparing the amount of income to determine the welfare and the comfort ratio. The results are reliable according to 92% validity.   
+- HH.income
+Householder income is the sum of the amounts reported separately for wage or salary income; net self- employment income; interest, dividends, or net rental or royalty income or income from estates and trusts, Social Security or Railroad retirement income, Supplemental Security Income, public assistance or welfare payments, retirement, survivor, or disability pensions, and all other income. Minimum amount of income is 21500 dollar and Maximum is 3209000 dollar per year. The analyse shows the average of incomes stands on 57000 dollar per year. Big difference in minimum and maximum amount of income refers to large class distinctions in American society. Also IQR is 71600 that shows the large difference amount of income between leisure and middle classes.We can see that income distribution is skwed. Income is a vital measure of general economic circumstances. Also income is used to understanding the relationship between the welfare and type of house holding.   
+- Grs.rent
+Gross rent is the contract rent plus the estimated average monthly cost of utilities and fuels. Gross rent is intended to eliminate differentials that result from varying practices with respect to the inclusion of utilities and fuels as part of the rental payment. The average rent is about 1000 dollar per month and maximum is 5000 dollar. The missing data category is more than 75% that shows the data is not stable completely. Also gross rent provides information on the monthly housing cost expenses for renters. When the data is used in conjunction with income data, the information offers an excellent measure of housing affordability and excessive shelter costs. Results show the standard of living in each estate and broadness of living abilities. Distribution of rent is alsi unnormal.The number of Max, min, and IQR says that the data suffer from outliers.   
+- Property.value
+The next variable refers on property value. The question was asked at housing units that were owned, being bought, vacant for sale, or sold not occupied at the time of the survey. Value is the respondent's estimate for selling price. The maximum value is 6,308,000 dollar and the average value shows 180,000 dollar. The difference between most expensive property and average value, about six million dollar, shows the existence of outliers.42% of data are missing value that should consider in analysis.   
+- Owner.Costs
+Selected monthly owner costs provide information on the monthly housing cost expenses for owners. Selected monthly owner costs are the sum of payments for mortgages, deeds of trust, contracts to purchase, or similar debts on the property; real estate taxes; fire, hazard, and flood insurance on the property; utilities; and fuels. This data used to determine living costs in each estate separately and finding the lowest and highest range of costs. The table shows the average cost is 1000 dollar per month. Also rate of IQR is 1151 and maximum figure stands on 13400. When the data is used in conjunction with income and gross rent data, the information offers an excellent measure of housing affordability and excessive shelter costs. The missing data is less than 50% in this survey.    
+- No.rooms
+Rooms provide the basis for estimating the amount of living and sleeping spaces within a housing unit. These data allow officials to plan and allocate funding for additional housing to relieve crowded housing conditions. The statistics on rooms are in terms of the number of housing units with a specified number of rooms. Survey found that the house in United States possess up 30 rooms in some houses. The intent of this data is to count the number of whole rooms used for living purposes. For each unit, rooms include living rooms, dining rooms, kitchens, bedrooms, finished recreation rooms, enclosed porches suitable for year- round use, and lodger's rooms. Also results determined that in average 6 rooms are in house. According to the 90% validity, it serves to aid in planning for future services and infrastructure, such as home energy assistance programs and the development of waste treatment facilities.   
+- when.Moved
+The next data refers to year householder moved into unit. These data help to measure neighbourhood stability and to identify transient communities. These variables show the year of the latest move by the householder. The intent is to establish the year the present occupancy by the householder began. The half number of householders, about 50%, stayed at the same place for a period of more than five years, 23% between 5 and 10 years and 26% more than 10 years. The results shows that a few groups of people tend to move each year, 12%.The data also is used to assess the amount of displacement caused by floods and other natural disasters through the states. Also it can be considered as an aid to evaluate the changes in service requirements.    
+- Householder and No.children(Unmarried and Children)
+The data on relationship to householder were derived from answers to Question 2 American Community Survey (ACS), 2017. From responses to this question numbers of related children, own children, unmarried partner households, and multigenerational households. An unmarried-partner household is a householder other than a married- couple household that includes a householder and an unmarried partner. An unmarried partner can be of the same sex or of the opposite sex as the householder. According to the data 94.5% of householder is in relationship. About 0.2% of male householder lives with male partner and 2.6% with female partner. The same range is seen for female householder, 0.2% lives with female partner and 2.6% with male partner 0.2%. Also Children include a son or daughter by birth, a stepchild, or adopted child of the householder, regardless of the child’s age or marital status. The statistics used to determine the plus cost related to number of children that the householder should be pay in compare with non children householder.the maximum number is 18 which is much more than IQR and this shows there is outlier in this data. This survey tried to find that by increasing the number of children the gross rent would be increased or not.
+
+
+
+```{r echo=FALSE,message=FALSE,error=FALSE}
+boxplot(Housing$HH.income,ylab = "Income", main = "Household Income Data")
+
+```
+
+Boxplots are an excellent way to identify outliers and other data anomalies.The box plot of Household Income Data shows that there are also lots of outliers.
+```{r echo=FALSE,message=FALSE,error=FALSE}
+boxplot(Housing$Grs.rent,ylab = "Rent", main = "Gross Rent Data")
+
+```
+In this box plot we can see lots of dots beyond the extreme line that shows potntial outliers in Gross Rent Data.Also here we do not have a symmetrical data.
+```{r echo=FALSE,message=FALSE,error=FALSE}
+
+boxplot(Housing$Property.Value,ylab = "Value", main = "Property value Data")
+
+```
+In Property value Data , there are outliers too. we can see that it is a skewed data.
+```{r echo=FALSE,message=FALSE,error=FALSE}
+
+
+
+```
+## Methodology   
+**Missing** data can reduce the statistical power of a study and can produce biased estimates, leading to invalid conclusions. In this analysis in order to handle missing values Listwise deletion is used because of its simplicity and comparability across analyses. However, this method has some disadvantages. As the summary table illustrates about 70% of gross rent are missing. this percentage for household income and property value is about 40%. It seems removing missing value leads to reducing statistical power. Also, in this method we don’t use all information and estimates may be biased.   
+
+
+**Outliers** Most parametric statistics, like means, standard deviations, and correlations, and every statistic based on these, are highly sensitive to outliers. And since the assumptions of common statistical procedures, like linear regression and ANOVA, are also based on these statistics, outliers can really mess up our analysis. Regarding the plot, boxplot is the best for presenting the outliers. As the previous box plots shows, in household income, gross rent and property value datasets, we have many outliers. In this document, at first outliers are detected and then the rows containing the outliers were removed. Removing outliers from data can be good because they are not always practical in certain sets of data. However, the removal of them can be impractical as the data might not show the true results. On the other hand, removing them can be a good thing as it can provide us with the ability to perform statistical tests on data, which in turn can give us  a better understanding of the data.as we will see below the impact of outliers on the result of regression.  
+```{r echo=FALSE,message=FALSE,error=FALSE}
+```
+## Association between Buidings structures and Tenure  
+Here in order to check if there is an association between these two categorical variables, chi squared test is used. As the result shows There is sufficient evidence (P-value<0.05) that Tenure and type pf structures are associated. 
+
+```{r echo=FALSE,message=FALSE,error=FALSE}
+#cleaning data
+prefer.structure <- Housing %>% count(Tenure,Units.structure) %>%
+  na.omit() %>%
+  mutate(Tenure = reorder(Tenure, -n, sum),
+         Units.structure = reorder(Units.structure, -n, sum))
+
+
+
+prefer.table <- table(Housing$Tenure,Housing$Units.structure)
+
+
+k.test <- chisq.test(prefer.table)
+
+#make a better chi squared tests's output
+
+tidy(k.test) %>%   #make it as a dataframe
+  kable(digits = c(0, 4, 0)) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+The plot shows that most of Americans prefer to buy a single-family house on the other hand apartments and manufactural building are popular among renters. We can also see that most of householders live in their owned home and the number of owners who have mortgages is much more than who doesn’t have. Finally we can add that the detached units are the most  popular one among Americans.
+```{r echo=FALSE,message=FALSE,error=FALSE}
+
+p.prefer.structure <- ggplot(prefer.structure) +
+  geom_col(aes(x = Tenure, y =n, fill = Units.structure)) +
+  ggtitle("Real Estate Market Based On Buildings structre") +
+  theme_minimal() +
+  theme(plot.title=element_text(family='', face='bold', colour="#999999", size=10)) +
+  labs(fill = "Structures") +
+  ylab("") +
+  xlab("") +
+  scale_fill_discrete(name = "Structures") +
+  scale_fill_manual(values = c("#999999", "#f5f5f5", "#5ab4ac","#56B4E9"))
+
+p.prefer.structure
+
+```
+## Gross Rent for single males and single females.   
+
+Here we want to know if the mean Gross Rent for single females is significantly different from that of single males. So we can do a t-test to find the answer. At first, we check the normality of data. The plot shows that we do not have a normal dataset.As we saw in the begining we have lots of outliers in Gross Rent Data. So the normality was checked after removing outliers. 
+
+```{r echo=FALSE,message=FALSE,error=FALSE}
+#cleaning data
+rnt <- Housing %>% select(Householder,Grs.rent)%>%
+  filter(Householder =="single.m" | Householder == "single.f") %>%
+  na.omit()
+#make plot with outliers
+ggplot(rnt, aes(x=Grs.rent, fill=Householder)) +
+  geom_histogram(alpha=1/2,binwidth =30) +
+  theme_minimal()+
+  ylab("")+
+  xlab("Gross Rent")
+
+```
+The second histogram has less skewness and kurtosis but it does not seem as a normal distribution yet.
+
+```{r echo=FALSE,message=FALSE,error=FALSE}
+
+#removing outliers
+rnt.outliers <- outliers::scores(rnt$Grs.rent)
+is_outlier2 <- rnt.outliers > 3 | rnt.outliers < -3
+rnt$is_outlier2 <- is_outlier2
+rnt.outliers.rm <- rnt[rnt$is_outlier2 == F, ]
+
+#make plot without outliers
+ggplot(rnt.outliers.rm, aes(x=Grs.rent, fill=Householder)) +
+  geom_histogram(alpha=1/2,binwidth =  30)+
+  theme_minimal()+
+  ylab("")+
+  xlab("Gross Rent")
+
+```
+In order to do a t-test we need to calculate the variance of each group.Because the data is not normal and it is a big data the levene test is used to check if the variance of each group is equal or not .   
+here the p-value is very small (less than 0.05) so we can say that the variances are not equal.
+
+```{r echo=FALSE,message=FALSE,error=FALSE}
+leven.t <- car::leveneTest (Grs.rent ~ Householder, data = rnt.outliers.rm)
+
+tidy(leven.t) %>%   #make it as a dataframe
+  kable() %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+Finally we can do a t-test. We obtained p-value less than 0.05, then we can conclude that the mean of gross rent for two groups are not similar.
+```{r echo=FALSE,message=FALSE,error=FALSE}
+ttest <- t.test(Grs.rent ~ Householder, data = rnt.outliers.rm, var.equal = F)
+tidy(ttest) %>%   #make it as a dataframe
+  kable() %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+
+```
+## Single Family Renters.   
+
+This bubble plot shows the Gross Rent to Income ratio for single males and single females for each State. At first glance, we can see a positive relationship between income and rent cost so we can say people with higher incomes prefer to live in a place with higher rent maybe with better conditions and the ratio is the same for all states and for both groups the trend is same. this plot also helps us to know what is the States in the extreme part of the graphic, or what is the one out of the general trend. For instance, Average Rent and average Income for the district of Columbia are much higher than in other states. Also, the biggest bubbles are related to California, NewYork, texas so we can say in these States there are many more single families than other states. another interesting thing is that the differences between average income for single males and females in California are high we can see the same thing in Texas.  
+
+```{r echo=FALSE,message=FALSE,error=FALSE}
+#cleaning data
+single <- Housing %>% select(st = State,Householder,HH.income,Grs.rent) %>%
+  na.omit()%>%
+  group_by(st,Householder) %>%
+  summarise(count=n(),
+            AVG.inc = mean(HH.income,na.rm = T),
+            AVG.rnt = mean(Grs.rent,na.rm = T)) %>%
+  filter(Householder== "single.f"|Householder=="single.m")
+
+single <- right_join(single,stateCodes,by.x = c("st"))
+
+#making plot
+single.plot <- single %>%
+  mutate(count=round(count,0)) %>%
+  mutate(AVG.inc=round(AVG.inc,2)) %>%
+  mutate(AVG.rnt=round(AVG.rnt,1)) %>%
+  arrange(desc(count))%>% #To avoid having big circles on top of the chart
+  mutate(Householder = factor(Householder, Householder)) %>%
+  #box text
+  mutate(text = paste("region: ", region,"\nCount: ", count, "\nAverage Income: ", AVG.inc, "\nAverage Rent cost: ", AVG.rnt, "\nHouseholder: ", Householder, sep="")) %>% 
+  ggplot( aes(x=AVG.inc, y=AVG.rnt, size = count, color = Householder, text=text)) +
+  geom_point(alpha=0.7) +
+  scale_size(range = c(1.4, 19), name="??") +
+  viridis::scale_color_viridis(discrete=TRUE, guide=FALSE)+
+  hrbrthemes::theme_ipsum(plot_title_size = 10) +
+  theme(legend.position="none")+
+  ggtitle("Rental cost and Income relationship")+
+  ylab("Averange Rent")+
+  xlab("Average Income")
+  
+single.plot.f <- plotly::ggplotly(single.plot, tooltip="text") # make it alittle fancy
+single.plot.f
+
+```
+
+
+
+## Supplemental Nutrition Assistance Program Benefits   
+
+SNAP is a program for low-income households to obtain a more nutritious diet. Here the percentage of households received this program for each state are calculated. We can say states like Wyoming, Utah, Colorado, Nebraska a smaller percentage of households benefit from this program. At first glance 4 white states in the center of map attract attentions . white color says that just 6 to 8 percentage of household in these states receiving SNAP which means there are fewer low-income household but It seems better to compare the interpretation of this plot with povery rate for each state because if these states are  poor it means that the SNAP does not work properly there.
+
+```{r echo=FALSE,message=FALSE,error=FALSE}
+#clean data
+FS <- Housing %>% select (st=State,Food.Stamp ) %>% na.omit()
+#number of household for states
+houseCounts <- FS %>% group_by (st) %>% summarise(count = n())
+
+#count household who recieved SNAP
+withFSCounts <- FS  %>% filter (Food.Stamp == 1 ) %>% group_by(st) %>% summarise(count = n())
+#ratio
+perWithFS <-round(withFSCounts$count / houseCounts$count * 100)
+FSDataByState = right_join(withFSCounts,houseCounts)
+perWithFSByState <- right_join(FSDataByState, stateCodes, by.x=c("St"))
+perWithFSByState <- mutate(perWithFSByState, value=perWithFS)
+map.Foodstamp <- state_choropleth(perWithFSByState, title = "Percentage of Households recieving SNAP Per State",legend = "Percentage",num_colors=9)+
+  scale_fill_brewer(palette=3)+guides(fill=guide_legend(title="Percentage"))
+map.Foodstamp
+
+```
+
+
+
+
+## Owner Cost    
+
+This plot compares Owner Cost for each state. We can say that Owner Cost in District of Colombia, New Jersey, Connecticut, California, Massachusetts is much higher than others. On the other hand, states like West Virginia, Arkansas, Mississippi and Oklahoma have the lowest Owner Cost.
+
+
+
+
+
+
+
+
+
+
+```{r echo=FALSE,message=FALSE,error=FALSE}
+#cleanig data
+owned <- Housing %>% dplyr::select(st= State,Owner.costs)%>%
+  na.omit() %>%
+  group_by(st)%>%
+  
+  summarise(cost = mean(Owner.costs,na.rm = T))%>%
+  right_join(stateCodes,by.x = c("st"))%>%
+  arrange(cost)
+
+
+owned.df <- data.frame(
+  id=seq(1,51),
+  region=owned$region,
+  cost =owned$cost)
+# ----- This section prepare a dataframe for labels
+# Get the name and the y position of each label
+p.owned <- owned.df
+# calculate the ANGLE of the labels
+number_of_bar <- nrow(p.owned)
+angle <-  90 - 360 * (p.owned$id-0.5) /number_of_bar
+# calculate the alignment of labels: right or left
+# If I am on the left part of the plot, my labels have currently an angle < -90
+p.owned$hjust <-ifelse( angle < -90, 1, 0)
+p.owned$angle<-ifelse(angle < -90, angle+180, angle)
+
+#start plot
+owned.plot <- ggplot(owned.df, aes(x=as.factor(id), y=cost)) +
+  geom_bar(stat="identity", fill=alpha("purple", .9)) +
+  theme_minimal() +
+  ylim(-1200,2400) + #The negative value controls the size of the inner circle, the positive one is useful to add size over each bar
+  
+  theme(axis.text = element_blank(),
+        axis.title = element_blank(),
+        panel.grid = element_blank(),
+        plot.margin = unit(rep(-1,4),"cm")) +
+# This makes the coordinate polar instead of cartesian.
+  coord_polar(start = 0) +
+  geom_text(data=p.owned,aes(x=id,y=cost+10,label=region,hjust=hjust),
+            color="black", fontface="bold",alpha=0.6,
+            size=2.5,angle=p.owned$angle,
+            inherit.aes = FALSE )
+
+
+owned.plot
+```
+```{r echo=FALSE,message=FALSE,error=FALSE}
+```
+
+
+## Rent-to-Income Ratio    
+
+In the plot we can see In North Dakota, Wyoming, South Dakota, and Iowa more than 55 % of household income is spent on renting a house which is a big number. Hawaii, Florida and California are the best states to live for tenants. 
+
+
+```{r echo=FALSE,message=FALSE,error=FALSE}
+IncomePerrent <- Housing %>%
+  select(st="State",HH.income,Grs.rent) %>%
+  filter(HH.income > 1 )%>%
+  group_by(st)%>%right_join(stateCodes,by.x=c("st"))%>%
+  na.omit()%>%
+  group_by(region) %>%
+  summarise(prc = (mean(HH.income,na.rm = TRUE)/mean(Grs.rent,na.rm = TRUE)))%>%
+  mutate(region = fct_reorder(region,prc))
+
+
+ggplot(IncomePerrent,
+       aes(x=prc, 
+           y=region)) +
+  geom_point(color="purple", 
+             size = 3) +
+  geom_segment(aes(x =40, 
+               xend = prc, 
+               y = region, 
+               yend = region),
+               color = "lightgrey") +
+  labs (x = "Ratio",
+        y = "",
+        title = "Rent-to-Income Ratio",
+        subtitle = "")+ 
+  theme_minimal() + 
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+
+
+
+
+
+
+```
+
+
+
+## Relationship between Number of children and Rent Cost.   
+
+The plot shows the relation between these two variables.
+
+
+
+
+
+
+```{r echo=FALSE,message=FALSE,error=FALSE}
+#cleaning data
+Housing.model.data <- Housing %>% select(State,No.children,Grs.rent) %>%
+  group_by(State,No.children)%>%
+  summarise(AVG_rent = mean(Grs.rent,na.rm = T))%>%
+   na.omit()
+
+cr <- cor(Housing.model.data$AVG_rent ,Housing.model.data$No.children)
+
+#Visualizing Graphically in ggplot
+ggplot(Housing.model.data , aes(x = No.children  , y =AVG_rent ))+
+  geom_jitter(width = .5, size=1,color="#69b3a2")+
+  geom_smooth(color="red", method = "gam", formula = y ~ s(x, bs = "cs"))+
+  ylab("Average Rent")+
+  xlab("Number Of children")+
+  ggtitle("Relationship between Number of children and Rent Cost in the USA")
+
+
+```
+
+
+
+As it was mentioned there are lots of outliers in this dataset so before conducting the regression the outliers was removed.
+
+
+
+
+
+```{r echo=FALSE,message=FALSE,error=FALSE}
+
+#removing outliers
+data.outliers <- outliers::scores(Housing.model.data$AVG_rent)
+is_outlier <- data.outliers > 3 | data.outliers < -3
+Housing.model.data$is_outlier <- is_outlier
+Housing.model.data.outliers.rm <- Housing.model.data[Housing.model.data$is_outlier == F, ]
+
+ggplot2::ggplot(Housing.model.data.outliers.rm, aes(x=as.factor(No.children), y=AVG_rent)) + 
+    ggplot2::geom_boxplot(fill="slateblue", alpha=0.2)+
+  ylab("Average Rent")+
+  xlab("Number Of children")+
+  ggtitle("Distribution of Gros Rent Cost for number of children (without outliers)")
+
+```
+Before conducting a regression model we should check the regression assumptions. 
+```{r echo=FALSE,message=FALSE,error=FALSE}
+
+#Create a relationship model without outliers 
+Housing.model <- lm(log(AVG_rent)~No.children,data=Housing.model.data.outliers.rm)
+par(mfrow=c(2,2))
+plot(Housing.model)
+
+```
+
+
+Looking at the **Residuals vs Fitted plot**, we see that the red line is perfectly flat. This tells us that there is no discernible non-linear trend to the residuals. Furthermore, the residuals appear to be equally variable across the entire range of fitted values. There is no indication of non-constant variance.   
+
+The second plot **Normal Q-Q** shows residuals are normally distributed because residuals follow a straight line but the residuals deviate from the diagonal line in the lower tail because of outlier.    
+
+**The Scale-Location plot** shows whether our residuals are spread equally along the predictor range.In this case,the red smooth line is not horizontal also the spread around the red line varies with the fitted values
+which suggest heteroskedasticity.    
+
+The last plot is **the Residuals vs Leverage plot** tells us which points have the greatest influence on the regression. Here there are no points outside the dotted line.and we can say our plot doesn’t show any influential cases.
+
+
+
+
+
+
+
+
+```{r echo=FALSE,message=FALSE,error=FALSE}
+summary.data <- summary(Housing.model)
+
+  #make it as a dataframe
+  kable(summary.data$Residuals) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+
+```
+- The Residuals section : the median is `r summary.data$Residuals$Residuals[3]` which is close to 0 . However, the 3Q and 1Q are not close to each other in magnitude. The max is `r summary.data$Residuals$Residuals[5]` and min is `r summary.data$Residuals[1]` that are far from each other in  magnitude so here we can see that the distribution of the residuals is not symmetrical.
+
+
+
+
+
+
+```{r echo=FALSE,message=FALSE,error=FALSE}
+  #make it as a dataframe
+  kable(summary.data$coefficients) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+
+
+```
+- Coefficients section
+    - Estimate: Intercept means that rent cost for family without children would be `r summary.data$coefficients[1]*100` and No.children that consider slope of our regression line means that for every 1 children the rent cost increas by `r summary.data$coefficients[2]`.
+    - std. Error: is saying that rent Cost when there is no children can vary from `r summary.data$coefficients[1]` by `r summary.data$coefficients[3]`. Besides, the increase of rent cost for a children can vary from `r summary.data$coefficients[2]` by `r summary.data$coefficients[4]`.
+    - t value and Pr(>|t|):based on these two columns we can say there is a relation between the number of children and rental cost as p-value for t-test is `r summary.data$coefficients[8]` and we can reject null hypothesis as it is less than .05 .here p-value is a very small value that means number of children is probably an excellent addition to our model.
+- Residual standard error: the actual rent cost for all of children can deviate from the true regression line by approximately `r summary.data$sigma`, on average.
+- Multiple R-squared : here R² is `r summary.data$r.squared` which means the model can explain `r summary.data$r.squared*100`% of the total variability.
+- F-statistic:Because the number of our data is big in order to say there is a relation between number of children and rent cost we do not need a large F-statics.Here it is `r summary.data$fstatistic[1] ` also p-value is less than .05 and we can reject null hypothesis that means there is a relation between number of children and rent cost.
+
+
+
+
+
+##  Discussion   
+
+The survey shows that tenants in some states have financial problems as, in some states the rent cost is half of householders income and short-term contracts are trend in these states .besides it seems that some programs such as SNAP is not executed there. which these two factor cause some economic problems for people who live in these states.
+However , I think for do a better analysis more factore should be considered.   
+
+Incorperating the weight (and inflation adjustment) is essential for getting correct and meaningful results, but because of complexity I ignor these factors.
+
+I checked the relation between number of childrens and rent cost . before starting the anlysis there is no relation between two variables but it seems there are a strong relationship. On the other hand becuse removing outliers and missing values I think may be the model is not as correct as it shows.
+
+
+```{r echo=FALSE,message=FALSE,error=FALSE}
+
+#could not knit this plot to an html file
+
+#cleaning data
+#mv <- Housing %>% group_by(State,when.moved)%>%
+  #select(when.moved,Tenure,st=State,Grs.rent)%>%
+  #filter(Tenure == "Rented")%>%
+  #summarise(count=n(),AVG_Rent = mean(Grs.rent,na.rm = T))%>%
+  #right_join(stateCodes,by.x=c("st"))%>%
+  #na.omit()
+#make a treemap
+#a <- treemap::treemap(mv,index = c("when.moved","region"),
+                 #vSize ="count",vColor = "Average Rent",type="value",
+                 #border.col=c("black", "grey", "grey"),
+                 #border.lwds=c(1,0.5,0.1),
+                 #fontsize.labels=c(6,5,0.6),
+                 #fontcolor.labels=c("black", "white", "black"),
+                 #fontface.labels=1,
+                # bg.labels=c("transparent"),
+                 #align.labels=list(c("center","center"),
+                                   #c("left", "top"),
+                                   #c("right","bottom")),
+                 #title="",
+                 #overlap.labels=0.5)
+
+# make it interactive
+#d3treeR::d3tree2(a,rootname = "When Moved")
+```
+
+
+
